@@ -19,6 +19,7 @@ export const EstadoQuota = {
   PENDENTE: "PENDENTE",
   PAGA: "PAGA",
   EM_ATRASO: "EM_ATRASO",
+  ANULADA: "ANULADA",
 } as const;
 export type EstadoQuota = (typeof EstadoQuota)[keyof typeof EstadoQuota];
 
@@ -47,8 +48,9 @@ export type EstadoImputacao = (typeof EstadoImputacao)[keyof typeof EstadoImputa
 
 export const EstadoReuniao = {
   AGENDADA: "AGENDADA",
-  REALIZADA: "REALIZADA",
+  CONCLUIDA: "CONCLUIDA",
   CANCELADA: "CANCELADA",
+  SEM_QUORUM: "SEM_QUORUM",
 } as const;
 export type EstadoReuniao = (typeof EstadoReuniao)[keyof typeof EstadoReuniao];
 
@@ -68,14 +70,31 @@ export type ResultadoDecisao = (typeof ResultadoDecisao)[keyof typeof ResultadoD
 export const EstadoOcorrencia = {
   ABERTA: "ABERTA",
   EM_ANALISE: "EM_ANALISE",
+  EM_RESOLUCAO: "EM_RESOLUCAO",
   RESOLVIDA: "RESOLVIDA",
+  ARQUIVADA: "ARQUIVADA",
+  REJEITADA: "REJEITADA",
   INACTIVA: "INACTIVA",
 } as const;
 export type EstadoOcorrencia = (typeof EstadoOcorrencia)[keyof typeof EstadoOcorrencia];
 
+export const LocalOcorrencia = {
+  FRACAO: "FRACAO",
+  ZONAS_COMUNS: "ZONAS_COMUNS",
+  EXTERIOR: "EXTERIOR",
+} as const;
+export type LocalOcorrencia = (typeof LocalOcorrencia)[keyof typeof LocalOcorrencia];
+
+export const UrgenciaOcorrencia = {
+  BAIXA: "BAIXA",
+  MEDIA: "MEDIA",
+  ALTA: "ALTA",
+} as const;
+export type UrgenciaOcorrencia = (typeof UrgenciaOcorrencia)[keyof typeof UrgenciaOcorrencia];
+
 export const RSVP = {
-  CONFIRMADO: "CONFIRMADO",
-  AUSENTE: "AUSENTE",
+  VOU: "VOU",
+  NAO_VOU: "NAO_VOU",
   TALVEZ: "TALVEZ",
 } as const;
 export type RSVP = (typeof RSVP)[keyof typeof RSVP];
@@ -100,5 +119,7 @@ export const AuditAction = {
   REUNIAO_CRIADA: "REUNIAO_CRIADA",
   ACTA_PUBLICADA: "ACTA_PUBLICADA",
   ADMIN_TRANSFERIDO: "ADMIN_TRANSFERIDO",
+  OCORRENCIA_SUBMETIDA: "OCORRENCIA_SUBMETIDA",
+  OCORRENCIA_ESTADO_ALTERADO: "OCORRENCIA_ESTADO_ALTERADO",
 } as const;
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

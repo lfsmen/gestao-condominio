@@ -19,11 +19,11 @@
 
 |Campo                     |Valor                                                                                    |
 |--------------------------|-----------------------------------------------------------------------------------------|
-|**Fase corrente**         |Fase 5 (P0 fechado funcionalmente). Falta validação humana + deploy real.                |
-|**Última acção concluída**|Build + 22 testes verdes + biome check OK.                                               |
+|**Fase corrente**         |P0 completo (Fases 0–9 + todos os gaps do SPEC v2.1 fechados). Falta deploy real.        |
+|**Última acção concluída**|Sessão 2: gap analysis + implementação de tudo o que faltava vs SPEC v2.1.               |
 |**Próxima acção**         |Setup Supabase real, RLS, deploy Vercel, smoke test em produção.                         |
 |**Bloqueado em**          |(nada — falta apenas infra externa)                                                      |
-|**Última actualização**   |2026-04-25                                                                               |
+|**Última actualização**   |2026-04-26                                                                               |
 
 -----
 
@@ -421,6 +421,34 @@ Cada sessão de Claude Code adiciona uma entrada aqui no fim. Formato:
 **Próxima sessão:**
 - ...
 ```
+
+### 2026-04-26 — Sessão 2 — Gap analysis SPEC v2.1 + implementação P0 em falta
+
+**Feito:**
+- **Schema** (`prisma/schema.prisma`): migração `20260426170332_ocorrencias_reunioes_admin_transfer` — adicionou `local` e `urgencia` a `Ocorrencia`, novo modelo `ComentarioOcorrencia`, `adminTransicaoExpiraEm` em `Membership`.
+- **Constants** (`lib/constants.ts`): `EstadoReuniao` — adicionou `SEM_QUORUM`, renomeou `REALIZADA→CONCLUIDA`; `RSVP` — renomeou `CONFIRMADO→VOU`, `AUSENTE→NAO_VOU`; `EstadoOcorrencia` — adicionou `EM_RESOLUCAO`, `ARQUIVADA`, `REJEITADA`; novos enums `LocalOcorrencia`, `UrgenciaOcorrencia`; `EstadoQuota` — adicionou `ANULADA`; `AuditAction` — adicionou `OCORRENCIA_SUBMETIDA`, `OCORRENCIA_ESTADO_ALTERADO`.
+- **Ocorrências** — form actualizado (`local` + `urgencia`), nova página de detalhe `/ocorrencias/[id]` com chat de comentários (add/list), transições de estado admin incl. motivo de rejeição. Email ao admin ao submeter, email ao autor ao mudar estado.
+- **Reuniões** — RSVP UI para moradores (VOU/NAO_VOU/TALVEZ), email + `.ics` na criação, opção SEM_QUORUM ao publicar acta, email a todos ao publicar acta.
+- **Admin transfer** — nova página `/admin/transferir`: iniciar transferência (7 dias sobreposição), renúncia imediata; bloqueio se único admin; email ao sucessor; link no nav de admin.
+- **Notificações** — `sendEmail` ligado em: cron de quotas mensais (email por morador), `aprovarGrandeDespesa` (email por fracção), `anularGrandeDespesa` (email com reembolso se aplicável), cron auto-rebaixamento de admin expirado.
+- **Cron** (`/api/cron/gerar-quotas-mensais`): chama `marcarOcorrenciasInactivas()` e auto-rebaixa admins com `adminTransicaoExpiraEm` expirado.
+- **`/tests/manual/checklist.md`** — 27 itens cobrindo todos os ACs do SPEC v2.1.
+- **Vitest config** — adicionado `env.DATABASE_URL` fallback para `file:./dev.db` (evita falha quando env não está pré-definida).
+- **22/22 testes verdes**, `pnpm biome check .` exits 0, `pnpm build` exits 0.
+
+**Não feito (planeado mas não acabado):**
+- Upload de fotos em ocorrências (requer Supabase Storage).
+- Playwright E2E happy path v2.1.
+- Supabase real + RLS + deploy Vercel.
+
+**Bloqueios:**
+- Infra externa (Supabase, Resend, Vercel) necessária para deploy real.
+
+**Próxima sessão:**
+- Criar Supabase, mudar provider para PostgreSQL, aplicar schema.
+- Configurar RLS + testar cross-tenant.
+- Deploy Vercel + validar 1 ciclo de cron.
+- Playwright E2E reproduzindo happy path v2.1 (SPEC §10).
 
 ### 2026-04-25 — Sessão 1 — Fases 0 → 9 — varredura inicial completa
 

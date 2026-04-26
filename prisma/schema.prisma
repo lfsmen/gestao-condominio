@@ -62,13 +62,14 @@ model User {
 
 /// role: ADMINISTRADOR | MORADOR
 model Membership {
-  id           String    @id @default(cuid())
-  condominioId String
-  userId       String
-  fracaoId     String?
-  role         String    @default("MORADOR")
-  joinedAt     DateTime  @default(now())
-  leftAt       DateTime?
+  id                      String    @id @default(cuid())
+  condominioId            String
+  userId                  String
+  fracaoId                String?
+  role                    String    @default("MORADOR")
+  joinedAt                DateTime  @default(now())
+  leftAt                  DateTime?
+  adminTransicaoExpiraEm  DateTime? // set durante 7-day overlap transfer
 
   condominio         Condominio       @relation(fields: [condominioId], references: [id], onDelete: Cascade)
   user               User             @relation(fields: [userId], references: [id])
@@ -231,7 +232,7 @@ model DespesaCorrente {
 // Reuniões
 // ============================================================
 
-/// estado: AGENDADA | REALIZADA | CANCELADA
+/// estado: AGENDADA | CONCLUIDA | CANCELADA | SEM_QUORUM
 model Reuniao {
   id           String    @id @default(cuid())
   condominioId String
@@ -268,7 +269,7 @@ model Decisao {
   @@index([reuniaoId])
 }
 
-/// rsvp: CONFIRMADO | AUSENTE | TALVEZ | null
+/// rsvp: VOU | NAO_VOU | TALVEZ | null
 model Presenca {
   id           String  @id @default(cuid())
   reuniaoId    String
@@ -286,21 +287,38 @@ model Presenca {
 // Ocorrências
 // ============================================================
 
-/// estado: ABERTA | EM_ANALISE | RESOLVIDA | INACTIVA
+/// estado: ABERTA | EM_ANALISE | EM_RESOLUCAO | RESOLVIDA | ARQUIVADA | REJEITADA | INACTIVA
+/// local: FRACAO | ZONAS_COMUNS | EXTERIOR
+/// urgencia: BAIXA | MEDIA | ALTA
 model Ocorrencia {
   id                String   @id @default(cuid())
   condominioId      String
   autorMembershipId String
   titulo            String
   descricao         String
+  local             String   @default("ZONAS_COMUNS")
+  urgencia          String   @default("MEDIA")
   estado            String   @default("ABERTA")
-  fotosUrls         String?
+  fotosUrls         String?  // JSON array de URLs
   ultimoUpdate      DateTime @default(now())
   createdAt         DateTime @default(now())
 
-  condominio Condominio @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  condominio   Condominio            @relation(fields: [condominioId], references: [id], onDelete: Cascade)
+  comentarios  ComentarioOcorrencia[]
 
   @@index([condominioId, estado])
+}
+
+model ComentarioOcorrencia {
+  id           String   @id @default(cuid())
+  ocorrenciaId String
+  autorId      String   // membershipId
+  texto        String
+  createdAt    DateTime @default(now())
+
+  ocorrencia Ocorrencia @relation(fields: [ocorrenciaId], references: [id], onDelete: Cascade)
+
+  @@index([ocorrenciaId, createdAt])
 }
 
 // ============================================================

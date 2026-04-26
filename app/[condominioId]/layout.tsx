@@ -53,6 +53,7 @@ export default async function CondominioLayout({
               <Tab href={`${base}/admin/grandes-despesas`} label="Grandes despesas" />
               <Tab href={`${base}/admin/despesas-correntes`} label="Correntes" />
               <Tab href={`${base}/admin/membros`} label="Membros" />
+              <Tab href={`${base}/admin/transferir`} label="Transferir" />
               <Tab href={`${base}/admin/audit`} label="Audit" />
             </>
           )}

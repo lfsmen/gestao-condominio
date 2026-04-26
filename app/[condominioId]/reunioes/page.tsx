@@ -7,10 +7,37 @@ import { recordAudit } from "@/lib/audit";
 import { requireSession } from "@/lib/auth/session";
 import { AuditAction, EstadoReuniao, Role } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { sendEmail } from "@/lib/notifications/email";
 import { getMembership, isAdmin } from "@/lib/tenancy";
 import { formatDataHora } from "@/lib/utils";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+
+async function gerarIcs(titulo: string, data: Date, local: string | null): Promise<string> {
+  const { createEvent } = await import("ics");
+  const d = data;
+  const dateArray: [number, number, number, number, number] = [
+    d.getUTCFullYear(),
+    d.getUTCMonth() + 1,
+    d.getUTCDate(),
+    d.getUTCHours(),
+    d.getUTCMinutes(),
+  ];
+  return new Promise((resolve, reject) => {
+    createEvent(
+      {
+        title: titulo,
+        start: dateArray,
+        duration: { hours: 2 },
+        location: local ?? undefined,
+      },
+      (err, value) => {
+        if (err) reject(err);
+        else resolve(value);
+      },
+    );
+  });
+}
 
 export default async function ReunioesPage({
   params,
@@ -33,21 +60,25 @@ export default async function ReunioesPage({
     const s = await requireSession();
     const c = await getMembership(s.userId, condominioId);
     if (!c || c.role !== Role.ADMINISTRADOR) throw new Error("Não autorizado");
+
     const titulo = String(formData.get("titulo") ?? "").trim();
     const dataStr = String(formData.get("data") ?? "");
     const local = String(formData.get("local") ?? "").trim() || null;
     const ordem = String(formData.get("ordemDoDia") ?? "").trim();
     if (!titulo || !dataStr || !ordem) throw new Error("Dados inválidos");
 
+    const dataDate = new Date(dataStr);
+
     const r = await prisma.reuniao.create({
       data: {
         condominioId,
         titulo,
-        data: new Date(dataStr),
+        data: dataDate,
         local,
         ordemDoDia: ordem,
       },
     });
+
     await recordAudit({
       condominioId,
       membershipId: c.membershipId,
@@ -56,6 +87,39 @@ export default async function ReunioesPage({
       entityId: r.id,
       payload: { titulo, data: dataStr },
     });
+
+    // Email + .ics a todos os membros activos.
+    const condominio = await prisma.condominio.findUnique({ where: { id: condominioId } });
+    const membros = await prisma.membership.findMany({
+      where: { condominioId, leftAt: null },
+      include: { user: true },
+    });
+
+    let icsContent = "";
+    try {
+      icsContent = await gerarIcs(titulo, dataDate, local);
+    } catch {
+      // ics opcional — não bloqueia a criação
+    }
+
+    for (const m of membros) {
+      await sendEmail({
+        to: m.user.email,
+        subject: `Convocatória: ${titulo} — ${condominio?.nome}`,
+        html: `<p>Olá ${m.user.nome},</p>
+<p>Foi marcada uma reunião em <strong>${condominio?.nome}</strong>.</p>
+<p><strong>Título:</strong> ${titulo}<br>
+<strong>Data:</strong> ${formatDataHora(dataDate)}<br>
+${local ? `<strong>Local:</strong> ${local}<br>` : ""}
+<strong>Ordem do dia:</strong></p>
+<pre style="font-family:sans-serif">${ordem}</pre>
+<p>Confirme a sua presença na aplicação.</p>
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/${condominioId}/reunioes/${r.id}">Ver convocatória →</a></p>`,
+        text: `Reunião: ${titulo}\nData: ${formatDataHora(dataDate)}${local ? `\nLocal: ${local}` : ""}\n\nOrdem do dia:\n${ordem}`,
+        icsContent: icsContent || undefined,
+      });
+    }
+
     redirect(`/${condominioId}/reunioes/${r.id}`);
   }
 
@@ -117,9 +181,10 @@ export default async function ReunioesPage({
                   </div>
                   <Badge
                     variant={
-                      r.estado === EstadoReuniao.REALIZADA
+                      r.estado === EstadoReuniao.CONCLUIDA
                         ? "success"
-                        : r.estado === EstadoReuniao.CANCELADA
+                        : r.estado === EstadoReuniao.CANCELADA ||
+                            r.estado === EstadoReuniao.SEM_QUORUM
                           ? "destructive"
                           : "outline"
                     }

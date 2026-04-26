@@ -2,10 +2,22 @@ import { EstadoImputacao, EstadoQuota, ModoQuota } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
+export interface QuotaCriada {
+  email: string;
+  nome: string;
+  condominioNome: string;
+  condominioId: string;
+  mes: number;
+  ano: number;
+  valorBaseCents: number;
+  fracaoId: string;
+}
+
 export interface GerarQuotasResult {
   criadas: number;
   jaExistiam: number;
   porCondominio: Record<string, { criadas: number; jaExistiam: number }>;
+  quotasCriadas: QuotaCriada[];
 }
 
 /**
@@ -27,7 +39,7 @@ export async function gerarQuotasMensais(
     include: {
       memberships: {
         where: { leftAt: null, fracaoId: { not: null } },
-        include: { fracao: true },
+        include: { fracao: true, user: true },
       },
       configuracoesQuota: {
         where: {
@@ -43,6 +55,7 @@ export async function gerarQuotasMensais(
   let totalCriadas = 0;
   let totalJaExistiam = 0;
   const porCondominio: Record<string, { criadas: number; jaExistiam: number }> = {};
+  const quotasCriadas: QuotaCriada[] = [];
 
   for (const c of condominios) {
     const cfg = c.configuracoesQuota[0];
@@ -75,6 +88,17 @@ export async function gerarQuotasMensais(
         totalCriadas += 1;
         porCondominio[c.id].criadas += 1;
 
+        quotasCriadas.push({
+          email: m.user.email,
+          nome: m.user.nome,
+          condominioNome: c.nome,
+          condominioId: c.id,
+          mes,
+          ano,
+          valorBaseCents,
+          fracaoId: m.fracaoId,
+        });
+
         // Liga imputações pendentes deste mês.
         await prisma.imputacaoExtra.updateMany({
           where: {
@@ -101,7 +125,23 @@ export async function gerarQuotasMensais(
     }
   }
 
-  return { criadas: totalCriadas, jaExistiam: totalJaExistiam, porCondominio };
+  return { criadas: totalCriadas, jaExistiam: totalJaExistiam, porCondominio, quotasCriadas };
+}
+
+/**
+ * Marca ocorrências sem actualização há > 60 dias como INACTIVA.
+ * Devolve a lista de condominioIds afectados para notificação.
+ */
+export async function marcarOcorrenciasInactivas(now: Date = new Date()): Promise<number> {
+  const limite = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const { count } = await prisma.ocorrencia.updateMany({
+    where: {
+      ultimoUpdate: { lt: limite },
+      estado: { in: ["ABERTA", "EM_ANALISE", "EM_RESOLUCAO"] },
+    },
+    data: { estado: "INACTIVA" },
+  });
+  return count;
 }
 
 /**

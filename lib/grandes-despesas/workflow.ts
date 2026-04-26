@@ -8,7 +8,23 @@ import {
   TipoDecisao,
 } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { sendEmail } from "@/lib/notifications/email";
 import { calcularImputacaoPorFracao, calcularMesPrestacao, dividirPorPrestacoes } from "./calculo";
+
+const MESES_PT = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
 
 /**
  * Cria uma `GrandeDespesa` em estado RASCUNHO.
@@ -143,6 +159,27 @@ export async function aprovarGrandeDespesa(params: {
     entityId: gd.id,
     payload: { titulo: gd.titulo, valor: gd.valorTotalCents },
   });
+
+  // Notificar moradores com derrama aprovada.
+  const membros = await prisma.membership.findMany({
+    where: { condominioId: gd.condominioId, leftAt: null, fracaoId: { not: null } },
+    include: { user: true, fracao: true },
+  });
+  const mesLabel = MESES_PT[gd.mesInicial - 1] ?? String(gd.mesInicial);
+  for (const m of membros) {
+    const dist = distribuicao.find((d) => d.fracaoId === m.fracaoId);
+    if (!dist) continue;
+    const valorMes = Math.round(dist.valorTotalCents / gd.numeroMeses);
+    await sendEmail({
+      to: m.user.email,
+      subject: `Derrama aprovada: ${gd.titulo}`,
+      html: `<p>Olá ${m.user.nome},</p>
+<p>A derrama <strong>${gd.titulo}</strong> foi aprovada em assembleia.</p>
+<p>A sua quota mensal sobe <strong>€${(valorMes / 100).toFixed(2)}</strong> durante <strong>${gd.numeroMeses} meses</strong> a partir de ${mesLabel} ${gd.anoInicial}.</p>
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/${gd.condominioId}/orcamento/minhas-contas">Ver as minhas contas →</a></p>`,
+      text: `Derrama aprovada: ${gd.titulo}. A sua quota sobe €${(valorMes / 100).toFixed(2)}/mês durante ${gd.numeroMeses} meses a partir de ${mesLabel} ${gd.anoInicial}.`,
+    });
+  }
 
   return prisma.grandeDespesa.findUnique({ where: { id: gd.id } });
 }
@@ -280,6 +317,29 @@ export async function anularGrandeDespesa(params: {
       aplicadasParaReembolso: aplicadas.length,
     },
   });
+
+  // Notificar moradores afectados pela anulação.
+  // Agrupa imputações por fracaoId para calcular o que cada um paga/pagou.
+  const fracaoIds = Array.from(new Set(gd.imputacoes.map((i) => i.fracaoId)));
+  const membrosAfectados = await prisma.membership.findMany({
+    where: { condominioId: gd.condominioId, leftAt: null, fracaoId: { in: fracaoIds } },
+    include: { user: true },
+  });
+  for (const m of membrosAfectados) {
+    const impsAplicadas = aplicadas.filter((i) => i.fracaoId === m.fracaoId);
+    const valorJaPago = impsAplicadas.reduce((s, i) => s + i.valorCents, 0);
+    await sendEmail({
+      to: m.user.email,
+      subject: `Derrama anulada: ${gd.titulo}`,
+      html: `<p>Olá ${m.user.nome},</p>
+<p>A derrama <strong>${gd.titulo}</strong> foi anulada.</p>
+<p>As prestações futuras <strong>deixam de ser cobradas</strong>.</p>
+${valorJaPago > 0 ? `<p>O valor já pago (€${(valorJaPago / 100).toFixed(2)}) será reembolsado pelo administrador fora da aplicação.</p>` : ""}
+<p>Motivo: ${params.motivo}</p>
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL}/${gd.condominioId}/orcamento/minhas-contas">Ver as minhas contas →</a></p>`,
+      text: `Derrama anulada: ${gd.titulo}. Motivo: ${params.motivo}.${valorJaPago > 0 ? ` Valor a reembolsar: €${(valorJaPago / 100).toFixed(2)}.` : ""}`,
+    });
+  }
 
   return {
     futurasAnuladas: futuras.length,
