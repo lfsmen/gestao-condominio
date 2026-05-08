@@ -1,13 +1,13 @@
 // Schema v2.1 — ver SPEC.md §5
-// Em desenvolvimento local usamos SQLite. Em produção (Supabase) é Postgres.
-// SQLite não suporta enums Prisma; usamos String com constantes tipadas em /lib/constants.ts.
+// Provider: postgresql (Supabase). Strings em vez de enums para compatibilidade histórica SQLite.
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================================
