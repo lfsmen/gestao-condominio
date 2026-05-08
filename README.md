@@ -8,7 +8,7 @@ Implementa SPEC v2.1 (ver `SPEC.md`).
 ## Stack
 
 - **Framework:** Next.js 15 (App Router) + React 19 + TypeScript
-- **DB:** Postgres (Supabase) em produção · SQLite local em dev
+- **DB:** PostgreSQL (Docker local em dev, Supabase em produção)
 - **ORM:** Prisma 5
 - **UI:** Tailwind + shadcn-style components
 - **Validação:** Zod
@@ -17,10 +17,38 @@ Implementa SPEC v2.1 (ver `SPEC.md`).
 
 ## Setup
 
+### Opção 1: Docker (Recomendado - PostgreSQL local)
+
+```bash
+# 1. Configurar variáveis de ambiente
+cp .env.example .env
+
+# 2. Construir e iniciar containers
+pnpm docker:build
+pnpm docker:up
+
+# 3. Ver logs (opcional)
+pnpm docker:logs
+
+# Aceder a http://localhost:3000
+```
+
+Para parar:
+```bash
+pnpm docker:down
+```
+
+Para aceder à shell do container:
+```bash
+pnpm docker:shell
+```
+
+### Opção 2: Desenvolvimento Nativo (SQLite)
+
 ```bash
 pnpm install
 cp .env.example .env.local
-# Editar .env.local — em dev podes deixar SQLite + DEV_AUTH_USER
+# Editar .env.local — usar SQLite local
 
 pnpm prisma generate
 pnpm prisma migrate dev          # cria a base SQLite local
@@ -125,10 +153,40 @@ tests/
   cheio. Acerto entre comprador/vendedor é fora da app.
 - **Reembolsos pós-anulação são tracking apenas (v2.1).** A app não processa pagamentos.
 
-## Deploy
+## Docker (Desenvolvimento Local)
+
+A aplicação inclui configuração Docker completa com PostgreSQL local:
+
+- **App container**: Node.js 20 + Next.js + pnpm
+- **Database container**: PostgreSQL 15 Alpine
+- **Migrations automáticas**: Corre na inicialização do container
+- **Seed automático**: Cria condomínio de exemplo na primeira execução
+
+**Comandos úteis:**
+```bash
+# Ver estado dos containers
+docker-compose ps
+
+# Ver logs da base de dados
+docker-compose logs -f db
+
+# Reset total (apaga dados)
+docker-compose down -v
+pnpm docker:up
+
+# Correr migrations manualmente
+docker-compose exec app npx prisma migrate deploy
+
+# Executar seed manualmente
+docker-compose exec app npx prisma db seed
+```
+
+Os dados da base de dados persistem no volume `postgres_data`.
+
+## Deploy (Produção)
 
 1. Criar projecto Supabase, copiar URLs/keys para `.env`.
-2. Mudar provider em `prisma/schema.prisma` para `postgresql`, correr `pnpm prisma migrate deploy`.
+2. Correr `pnpm prisma migrate deploy` para criar as tabelas.
 3. Configurar `vercel.json` (já incluído — cron dia 1 às 05:00 UTC).
 4. Deploy a Vercel.
 5. Configurar RLS no Supabase para todas as tabelas com `condominioId`.

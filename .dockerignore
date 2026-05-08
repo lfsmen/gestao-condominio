@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Next.js build output
+.next
+out
+
+# Development files
+.env
+.env.local
+.env.*.local
+*.log
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Prisma
+# Keep prisma/migrations but ignore dev database
+dev.db
+dev.db-journal
+*.db
+*.db-journal
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
